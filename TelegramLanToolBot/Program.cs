@@ -4,23 +4,24 @@ using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text;
+using ApiAiSDK;
 using Telegram.Bot;
 using Telegram.Bot.Args;
 using Telegram.Bot.Types.Enums;
-using Telegram.Bot.Types.InlineQueryResults;
-using Telegram.Bot.Types.InputMessageContents;
 using Telegram.Bot.Types.ReplyMarkups;
 
 namespace TelegramLanToolBot
 {
-    class Program
+    internal class Program
     {
+        private static ApiAi _apiAi;
+
         private static TelegramBotClient _bot;
 
         static void Main(string[] args)
         {
             //Console.WriteLine(args[0]);
-            
+
             if (args.Length == 0)
             {
                 Console.WriteLine("Не указан API_ID, приложение будет закрыто.");
@@ -33,9 +34,13 @@ namespace TelegramLanToolBot
                 _bot.OnCallbackQuery += BotOnCallbackQueryReceived;
                 _bot.OnMessage += BotOnMessageReceived;
                 _bot.OnMessageEdited += BotOnMessageReceived;
-                _bot.OnInlineQuery += BotOnInlineQueryReceived;
+                //_bot.OnInlineQuery += BotOnInlineQueryReceived;
                 _bot.OnInlineResultChosen += BotOnChosenInlineResultReceived;
                 _bot.OnReceiveError += BotOnReceiveError;
+
+                var config = new AIConfiguration("87286ae9955d43d7ada5c23346787606", SupportedLanguage.Russian);
+                _apiAi = new ApiAi(config);
+
 
                 var me = _bot.GetMeAsync().Result;
 
@@ -64,45 +69,12 @@ namespace TelegramLanToolBot
             Console.WriteLine($"Received choosen inline result: {chosenInlineResultEventArgs.ChosenInlineResult.ResultId}");
         }
 
-        private static async void BotOnInlineQueryReceived(object sender, InlineQueryEventArgs inlineQueryEventArgs)
-        {
-            InlineQueryResult[] results = {
-                new InlineQueryResultLocation
-                {
-                    Id = "1",
-                    Latitude = 40.7058316f, // displayed result
-                    Longitude = -74.2581888f,
-                    Title = "New York",
-                    InputMessageContent = new InputLocationMessageContent // message if result is selected
-                    {
-                        Latitude = 40.7058316f,
-                        Longitude = -74.2581888f,
-                    }
-                },
-
-                new InlineQueryResultLocation
-                {
-                    Id = "2",
-                    Longitude = 52.507629f, // displayed result
-                    Latitude = 13.1449577f,
-                    Title = "Berlin",
-                    InputMessageContent = new InputLocationMessageContent // message if result is selected
-                    {
-                        Longitude = 52.507629f,
-                        Latitude = 13.1449577f
-                    }
-                }
-            };
-
-            await _bot.AnswerInlineQueryAsync(inlineQueryEventArgs.InlineQuery.Id, results, isPersonal: true, cacheTime: 0);
-        }
-
         private static async void BotOnMessageReceived(object sender, MessageEventArgs messageEventArgs)
         {
             var message = messageEventArgs.Message;
 
 
-            if (message == null || message.Type != MessageType.TextMessage) return;
+            if (message == null || message.Type != MessageType.Text) return;
 
             var text = message.Text.Split(' ');
             if (message.Text.StartsWith("/wol")) // команда будить компьютер
@@ -154,80 +126,81 @@ namespace TelegramLanToolBot
                         break;
                 }
             }
-            //else if (message.Text.StartsWith("/keyboard")) // send custom keyboard
-            //{
-            //    var keyboard = new ReplyKeyboardMarkup(new[]
-            //    {
-            //        new [] // first row
-            //        {
-            //            new KeyboardButton("1.1"),
-            //            new KeyboardButton("1.2"),  
-            //        },
-            //        new [] // last row
-            //        {
-            //            new KeyboardButton("2.1"),
-            //            new KeyboardButton("2.2"),  
-            //        }
-            //    });
+            else if (message.Text.StartsWith("/keyboard")) // send custom keyboard
+            {
+                var keyboard = new ReplyKeyboardMarkup(new[]
+                {
+                    new [] // first row
+                    {
+                        new KeyboardButton("List"),
+                        new KeyboardButton("Ping"),
+                    },
+                    new [] // last row
+                    {
+                        new KeyboardButton("WOL"),
+                        new KeyboardButton("TraceRt"),
+                    }
+                });
 
-            //    await Bot.SendTextMessageAsync(message.Chat.Id, "Choose",
-            //        replyMarkup: keyboard);
-            //}
-            //else if (message.Text.StartsWith("/photo")) // send a photo
-            //{
-            //    await Bot.SendChatActionAsync(message.Chat.Id, ChatAction.UploadPhoto);
-
-            //    const string file = @"<FilePath>";
-
-            //    var fileName = file.Split('\\').Last();
-
-            //    using (var fileStream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.Read))
-            //    {
-            //        var fts = new FileToSend(fileName, fileStream);
-
-            //        await Bot.SendPhotoAsync(message.Chat.Id, fts, "Nice Picture");
-            //    }
-            //}
+                await _bot.SendTextMessageAsync(message.Chat.Id, "Choose",
+                    replyMarkup: keyboard);
+            }
             else if (message.Text.StartsWith("/GetCode")) // команда на получение своего ИД
             {
                 var usage = $"Твой код для привязки - {message.From.Id} " +
                             "Передай его админу!";
                 await _bot.SendTextMessageAsync(message.Chat.Id, usage, replyMarkup: new ReplyKeyboardRemove());
             }
-            //else if (message.Text.StartsWith("/request")) // request location or contact
-            //{
-            //    var keyboard = new ReplyKeyboardMarkup(new[]
-            //    {
-            //        new KeyboardButton("Location")
-            //        {
-            //            RequestLocation = true
-            //        },
-            //        new KeyboardButton("Contact")
-            //        {
-            //            RequestContact = true
-            //        },
-            //    });
+            else if (message.Text.StartsWith("/request")) // request location or contact
+            {
+                var keyboard = new ReplyKeyboardMarkup(new[]
+                {
+                    new KeyboardButton("Location")
+                    {
+                        RequestLocation = true
+                    },
+                    new KeyboardButton("Contact")
+                    {
+                        RequestContact = true
+                    },
+                });
 
-            //    await _bot.SendTextMessageAsync(message.Chat.Id, "Who or Where are you?", replyMarkup: keyboard);
-            //}
+                await _bot.SendTextMessageAsync(message.Chat.Id, "Who or Where are you?", replyMarkup: keyboard);
+            }
 
             else
             {
-                var usage = "Я особо интелектуальный робот - будильщик компьютеров!!! " +
-                            "\nИспользование:" +
-                            "\n/wol <IP MAC port> - для пробуждения компьютера " +
-                            "\nПример использования: /wol 1.2.3.4 01:02:03:04:05:06 7 " +
-                            "\n/GetCode - получить свой ИД, для передачи Админу " +
-                            "\n/ping <IP> - пинг заданного ип ";
+                try
+                {
+                    var response = _apiAi.TextRequest(message.Text);
+                    var msg = string.IsNullOrEmpty(response.Result.Fulfillment.Speech)
+                        ? "Я Вас не совсем понял!"
+                        : response.Result.Fulfillment.Speech;
+
+                    await _bot.SendTextMessageAsync(message.Chat.Id,
+                        msg,
+                        disableWebPagePreview: true, replyMarkup: new ReplyKeyboardRemove());
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine(e.Message);
+                }
 
 
-                await _bot.SendTextMessageAsync(message.Chat.Id, usage, replyMarkup: new ReplyKeyboardRemove());
+                //var usage = "Я особо интелектуальный робот - будильщик компьютеров!!! " +
+                //            "\nИспользование:" +
+                //            "\n/wol <IP MAC port> - для пробуждения компьютера " +
+                //            "\nПример использования: /wol 1.2.3.4 01:02:03:04:05:06 7 " +
+                //            "\n/GetCode - получить свой ИД, для передачи Админу " +
+                //            "\n/ping <IP> - пинг заданного ип ";
+
+
+                //await _bot.SendTextMessageAsync(message.Chat.Id, usage, replyMarkup: new ReplyKeyboardRemove());
             }
         }
-
+        // метод локального пинга
         private static string LocalPing(string ip)
         {
-            // Ping's the local machine.
             var pingSender = new Ping();
             var reply = pingSender.Send(IPAddress.Parse(ip));
 
@@ -249,13 +222,28 @@ namespace TelegramLanToolBot
             return str.ToString();
         }
 
+
+        //отработка прилепленных кнопок под сообщениями
         private static async void BotOnCallbackQueryReceived(object sender, CallbackQueryEventArgs callbackQueryEventArgs)
         {
-            await _bot.AnswerCallbackQueryAsync(callbackQueryEventArgs.CallbackQuery.Id,
-                $"Received {callbackQueryEventArgs.CallbackQuery.Data}");
-        }
-    }
+            //await _bot.EditMessageTextAsync(callbackQueryEventArgs.CallbackQuery.From.Id,
+            //    callbackQueryEventArgs.CallbackQuery.Message.MessageId,
+            //    "Страница" + callbackQueryEventArgs.CallbackQuery.Data,
+            //    replyMarkup: GeneratePagination(15, int.Parse(callbackQueryEventArgs.CallbackQuery.Data)));
 
+
+            //await _bot.AnswerCallbackQueryAsync(callbackQueryEventArgs.CallbackQuery.Id, $"Received {callbackQueryEventArgs.CallbackQuery.Data}");
+
+
+            //await _bot.SendTextMessageAsync(callbackQueryEventArgs.CallbackQuery.From.Id,
+            //    "Сделайте выбор", replyMarkup: GeneratePagination(5, int.Parse(callbackQueryEventArgs.CallbackQuery.Data)),
+            //    replyToMessageId: callbackQueryEventArgs.CallbackQuery.Message.MessageId);
+
+            //await _bot.SendTextMessageAsync(callbackQueryEventArgs.CallbackQuery.From.Id, $"Received {callbackQueryEventArgs.CallbackQuery.Data}", replyMarkup: new ReplyKeyboardRemove());
+        }
+
+    }
+    //класс пробуждения компьютера по сети
     internal static class WakeOnLan
     {
         public static void Up(string ip, string mac, int? port = null)
@@ -272,8 +260,8 @@ namespace TelegramLanToolBot
 
             const int start = 6;
             for (var i = 0; i < 16; i++) // создаем нужную последовательность байт для пакета
-            for (var x = 0; x < 6; x++)
-                data[start + i * 6 + x] = (byte)Convert.ToInt32(macDigits[x], 16);
+                for (var x = 0; x < 6; x++)
+                    data[start + i * 6 + x] = (byte)Convert.ToInt32(macDigits[x], 16);
 
             client.Send(data, data.Length, ip, port ?? 7); // отправляем пакет
         }
@@ -288,4 +276,6 @@ namespace TelegramLanToolBot
             return GetMacDigits(mac).Length == 6;
         }
     }
+
+
 }
